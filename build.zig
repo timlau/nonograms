@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const devel = b.release_mode == .off;
+    const devel = optimize == .Debug;
     const app_id = "dev.ianjohnson.Nonograms";
 
     const gobject = b.dependency("gobject", .{});
@@ -44,6 +44,7 @@ pub fn build(b: *std.Build) !void {
     const exe = b.addExecutable(.{
         .name = "nonograms",
         .root_module = mod,
+        .use_llvm = true,
     });
     b.installArtifact(exe);
 
@@ -124,7 +125,9 @@ pub fn build(b: *std.Build) !void {
 
 fn readLinguas(b: *std.Build) []const []const u8 {
     const max_bytes = 16 * 1024; // 16KB
-    const raw = std.fs.cwd().readFileAlloc(b.allocator, b.pathFromRoot("po/LINGUAS"), max_bytes) catch |err|
+    var io = std.Io.Threaded.init(b.allocator, .{});
+    defer io.deinit();
+    const raw = std.Io.Dir.cwd().readFileAlloc(io.io(), b.pathFromRoot("po/LINGUAS"), b.allocator, std.Io.Limit.limited(max_bytes)) catch |err|
         std.debug.panic("failed to read LINGUAS: {}", .{err});
 
     var linguas: std.ArrayList([]const u8) = .empty;

@@ -18,13 +18,18 @@ const oom = @import("util.zig").oom;
 
 const package = "nonograms";
 
-pub fn main() !void {
+var global_io: std.Io = undefined;
+
+pub fn main(init: std.process.Init) !void {
+    global_io = init.io;
+
     intl.bindTextDomain(package, build_options.locale_dir ++ "");
     intl.bindTextDomainCodeset(package, "UTF-8");
     intl.setTextDomain(package);
 
     const app = Application.new();
-    const status = gio.Application.run(app.as(gio.Application), @intCast(std.os.argv.len), std.os.argv.ptr);
+    const args_vec = init.minimal.args.vector;
+    const status = gio.Application.run(app.as(gio.Application), @intCast(args_vec.len), @ptrCast(@constCast(args_vec.ptr)));
     std.process.exit(@intCast(status));
 }
 
@@ -168,13 +173,13 @@ const ApplicationWindow = extern struct {
         if (win.private().library) |*library| {
             library.deinit();
         }
-        var library = Library.load(c_allocator) catch {
+        var library = Library.load(c_allocator, global_io) catch {
             adw.ToastOverlay.addToast(win.private().toast_overlay, adw.Toast.new(intl.gettext("Failed to read library")));
             return;
         };
         if (library.entries.len == 0) {
-            if (Library.copyDefaultPuzzles(c_allocator)) {
-                library = Library.load(c_allocator) catch {
+            if (Library.copyDefaultPuzzles(c_allocator, global_io)) {
+                library = Library.load(c_allocator, global_io) catch {
                     adw.ToastOverlay.addToast(win.private().toast_overlay, adw.Toast.new(intl.gettext("Failed to read library")));
                     return;
                 };
@@ -369,7 +374,7 @@ const ApplicationWindow = extern struct {
         var rendered: std.Io.Writer.Allocating = .init(c_allocator);
         defer rendered.deinit();
         state.set.render(c_allocator, &rendered.writer) catch oom();
-        std.fs.cwd().writeFile(.{
+        std.Io.Dir.cwd().writeFile(global_io, .{
             .sub_path = path,
             .data = rendered.written(),
         }) catch return; // TODO: error handling

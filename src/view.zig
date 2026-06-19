@@ -205,7 +205,7 @@ pub const View = extern struct {
         _ = gtk.EventControllerKey.signals.key_released.connect(key, *View, &handleKeyReleased, view, .{});
         gtk.Widget.addController(view.as(gtk.Widget), key.as(gtk.EventController));
 
-        view.private().arena = ArenaAllocator.init(std.heap.raw_c_allocator);
+        view.private().arena = ArenaAllocator.init(std.heap.c_allocator);
 
         _ = ColorPicker.signals.color_selected.connect(view.private().color_picker, *View, &handleColorSelected, view, .{});
     }
@@ -628,7 +628,7 @@ pub const ColorPicker = extern struct {
         gtk.Widget.setLayoutManager(picker.as(gtk.Widget), gtk.BinLayout.new().as(gtk.LayoutManager));
 
         picker.private().buttons = &.{};
-        picker.private().arena = ArenaAllocator.init(std.heap.raw_c_allocator);
+        picker.private().arena = ArenaAllocator.init(std.heap.c_allocator);
     }
 
     fn dispose(picker: *ColorPicker) callconv(.c) void {

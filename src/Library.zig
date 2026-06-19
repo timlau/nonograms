@@ -21,11 +21,11 @@ pub fn deinit(library: *Library) void {
     library.arena.deinit();
 }
 
-pub fn load(parent_allocator: Allocator) !Library {
+pub fn load(parent_allocator: Allocator, io: std.Io) !Library {
     const library_path = try libraryPathAlloc(parent_allocator);
     defer parent_allocator.free(library_path);
-    var library_dir = try std.fs.cwd().makeOpenPath(library_path, .{ .iterate = true });
-    defer library_dir.close();
+    var library_dir = try std.Io.Dir.cwd().createDirPathOpen(io, library_path, .{ .open_options = .{ .iterate = true } });
+    defer library_dir.close(io);
 
     var arena = ArenaAllocator.init(parent_allocator);
     errdefer arena.deinit();
@@ -33,15 +33,15 @@ pub fn load(parent_allocator: Allocator) !Library {
 
     var entries: std.ArrayList(Entry) = .empty;
     var library_dir_iter = library_dir.iterate();
-    while (try library_dir_iter.next()) |child| {
+    while (try library_dir_iter.next(io)) |child| {
         if (child.kind != .file or !mem.endsWith(u8, child.name, ".pbn")) {
             continue;
         }
 
-        const child_file = library_dir.openFile(child.name, .{}) catch continue;
-        defer child_file.close();
+        const child_file = library_dir.openFile(io, child.name, .{}) catch continue;
+        defer child_file.close(io);
         var buf: [1024]u8 = undefined;
-        var file_reader = child_file.reader(&buf);
+        var file_reader = child_file.reader(io, &buf);
         var diag: pbn.Diagnostics = .init(allocator);
         defer diag.deinit();
         var puzzle_set = pbn.PuzzleSet.parseReader(allocator, &file_reader.interface, &diag) catch continue;
@@ -55,14 +55,14 @@ pub fn load(parent_allocator: Allocator) !Library {
     return .{ .entries = try entries.toOwnedSlice(allocator), .arena = arena };
 }
 
-pub fn copyDefaultPuzzles(allocator: Allocator) !void {
+pub fn copyDefaultPuzzles(allocator: Allocator, io: std.Io) !void {
     const library_path = try libraryPathAlloc(allocator);
     defer allocator.free(library_path);
-    var library_dir = try std.fs.cwd().makeOpenPath(library_path, .{});
-    defer library_dir.close();
+    var library_dir = try std.Io.Dir.cwd().createDirPathOpen(io, library_path, .{});
+    defer library_dir.close(io);
 
     for (default_puzzles) |default_puzzle| {
-        try library_dir.writeFile(.{ .sub_path = default_puzzle.name, .data = default_puzzle.data });
+        try library_dir.writeFile(io, .{ .sub_path = default_puzzle.name, .data = default_puzzle.data });
     }
 }
 
